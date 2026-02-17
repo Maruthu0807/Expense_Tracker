@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Secure Expense Tracker</title>
+
+<style>
+body{font-family:Arial;margin:0;text-align:center;background:#eef2f7;}
+.page{padding:30px;}
+.hidden{display:none;}
+
+input,textarea{
+padding:10px;margin:8px;width:250px;
+}
+
+button{
+padding:10px 18px;margin:8px;border:none;border-radius:8px;
+background:#4CAF50;color:white;font-size:15px;cursor:pointer;
+}
+
+table{
+border-collapse:collapse;margin:auto;background:white;width:95%;
+}
+
+td{
+border:1px solid #ccc;height:95px;vertical-align:top;padding:4px;
+}
+
+.date{font-weight:bold;}
+
+.entry{
+font-size:12px;background:#e8f5e9;margin:2px;padding:2px;border-radius:4px;
+}
+
+.action{cursor:pointer;margin-left:6px;font-weight:bold;}
+.del{color:red;}
+.edit{color:blue;}
+
+.total{font-size:18px;margin:10px;font-weight:bold;}
+
+.search{padding:10px;width:250px;margin:10px;}
+
+.topbar{
+background:#222;color:white;padding:12px;
+display:flex;justify-content:space-between;align-items:center;
+}
+
+.logout{background:red;}
+
+.reportBox{
+background:white;margin:5px auto;padding:8px;border-radius:6px;
+width:250px;box-shadow:0 0 4px #bbb;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage" class="page hidden">
+<h2>Login</h2>
+<input id="loginUser" placeholder="Username"><br>
+<input id="loginPass" type="password" placeholder="Password"><br>
+<button onclick="login()">Login</button>
+<button onclick="show('signupPage')">Sign Up</button>
+</div>
+
+<!-- SIGNUP -->
+<div id="signupPage" class="page hidden">
+<h2>Signup</h2>
+<input id="newUser" placeholder="Username"><br>
+<input id="newPass" type="password"><br>
+<button onclick="signup()">Create Account</button>
+<button onclick="show('loginPage')">Back</button>
+</div>
+
+<!-- APP -->
+<div id="appPage" class="hidden">
+
+<div class="topbar">
+<span id="welcome"></span>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="page">
+
+<button onclick="showSection('form')">Add Expense</button>
+<button onclick="showSection('calendar');draw()">View Calendar</button>
+
+<!-- FORM -->
+<div id="form" class="hidden">
+<h3>Add Expense</h3>
+<input type="date" id="date"><br>
+<input type="number" id="amount" placeholder="Amount"><br>
+<textarea id="note" placeholder="Note"></textarea><br>
+<button onclick="save()">Save</button>
+</div>
+
+<!-- CALENDAR -->
+<div id="calendar" class="hidden">
+
+<h3>
+<button onclick="changeMonth(-1)">◀</button>
+<span id="title"></span>
+<button onclick="changeMonth(1)">▶</button>
+</h3>
+
+<input id="search" class="search" placeholder="Search..." oninput="draw()">
+
+<div class="total" id="total"></div>
+
+<table id="cal"></table>
+
+<div id="dateTotals"></div>
+
+</div>
+
+</div>
+</div>
+
+
+<script>
+
+/* ---------- AUTH ---------- */
+
+function show(id){
+document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
+document.getElementById(id).classList.remove("hidden");
+}
+
+function signup(){
+let u=newUser.value.trim();
+let p=newPass.value.trim();
+if(!u||!p)return alert("Enter details");
+if(localStorage.getItem("user_"+u))return alert("User exists");
+localStorage.setItem("user_"+u,p);
+alert("Account created");
+show("loginPage");
+}
+
+function login(){
+let u=loginUser.value.trim();
+let p=loginPass.value.trim();
+if(localStorage.getItem("user_"+u)===p){
+localStorage.setItem("loggedUser",u);
+startApp();
+}else alert("Invalid login");
+}
+
+function logout(){
+localStorage.removeItem("loggedUser");
+location.reload();
+}
+
+function startApp(){
+let u=localStorage.getItem("loggedUser");
+if(!u){show("loginPage");return;}
+loginPage.classList.add("hidden");
+signupPage.classList.add("hidden");
+appPage.classList.remove("hidden");
+welcome.innerText="Welcome "+u;
+showSection("form");
+}
+startApp();
+
+
+/* ---------- APP ---------- */
+
+let current=new Date();
+
+function showSection(id){
+document.querySelectorAll("#form,#calendar").forEach(d=>d.classList.add("hidden"));
+document.getElementById(id).classList.remove("hidden");
+}
+
+function formatDate(d){
+let dt=new Date(d);
+return String(dt.getDate()).padStart(2,"0")+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+dt.getFullYear();
+}
+
+function save(){
+
+let d=date.value;
+let amt=amount.value;
+let noteText=note.value.trim();
+
+if(!d||!amt||!noteText)return alert("Fill all fields");
+
+let user=localStorage.getItem("loggedUser");
+let key="data_"+user;
+let data=JSON.parse(localStorage.getItem(key)||"{}");
+
+if(!data[d])data[d]=[];
+data[d].push({amount:amt,note:noteText});
+
+localStorage.setItem(key,JSON.stringify(data));
+
+alert("Saved");
+amount.value="";
+note.value="";
+}
+
+function changeMonth(n){
+current.setMonth(current.getMonth()+n);
+draw();
+}
+
+
+function draw(){
+
+let table=cal;
+table.innerHTML="";
+
+let year=current.getFullYear();
+let month=current.getMonth();
+
+title.innerText=current.toLocaleString("default",{month:"long",year:"numeric"});
+
+let first=new Date(year,month,1).getDay();
+let days=new Date(year,month+1,0).getDate();
+
+let user=localStorage.getItem("loggedUser");
+let data=JSON.parse(localStorage.getItem("data_"+user)||"{}");
+
+let search=document.getElementById("search").value.toLowerCase();
+let total=0;
+let row=document.createElement("tr");
+
+for(let i=0;i<first;i++)row.appendChild(document.createElement("td"));
+
+for(let d=1; d<=days; d++){
+
+if(row.children.length==7){
+table.appendChild(row);
+row=document.createElement("tr");
+}
+
+let cell=document.createElement("td");
+
+let dt=document.createElement("div");
+dt.className="date";
+dt.textContent=d;
+cell.appendChild(dt);
+
+let key=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+
+if(data[key]){
+data[key].forEach((e,i)=>{
+
+let text=(e.amount+" "+e.note).toLowerCase();
+
+if(text.includes(search)){
+
+total+=Number(e.amount);
+
+let div=document.createElement("div");
+div.className="entry";
+
+div.innerHTML=
+`₹${e.amount} - ${e.note}
+<span class="action edit" onclick="editEntry('${key}',${i})">✎</span>
+<span class="action del" onclick="del('${key}',${i})">×</span>`;
+
+cell.appendChild(div);
+}
+
+});
+}
+
+row.appendChild(cell);
+}
+
+table.appendChild(row);
+document.getElementById("total").innerText="Monthly Total: ₹"+total;
+
+
+/* DATE TOTALS */
+let html="<h3>Date-wise Total</h3>";
+let overall=0;
+let found=false;
+
+Object.keys(data).sort().forEach(d=>{
+
+let dt=new Date(d);
+if(dt.getMonth()!=month||dt.getFullYear()!=year) return;
+
+let sum=0;
+data[d].forEach(e=>sum+=Number(e.amount));
+
+overall+=sum;
+
+html+=`<div class="reportBox">${formatDate(d)} — ₹${sum}</div>`;
+found=true;
+
+});
+
+html+=found?`<h3>Overall Total: ₹${overall}</h3>`:"<i>No records</i>";
+
+document.getElementById("dateTotals").innerHTML=html;
+}
+
+
+/* DELETE */
+function del(date,index){
+let user=localStorage.getItem("loggedUser");
+let key="data_"+user;
+let data=JSON.parse(localStorage.getItem(key));
+data[date].splice(index,1);
+if(data[date].length==0)delete data[date];
+localStorage.setItem(key,JSON.stringify(data));
+draw();
+}
+
+
+/* EDIT */
+function editEntry(date,index){
+let user=localStorage.getItem("loggedUser");
+let key="data_"+user;
+let data=JSON.parse(localStorage.getItem(key));
+let entry=data[date][index];
+
+let a=prompt("Edit amount",entry.amount);
+let n=prompt("Edit note",entry.note);
+if(a&&n){
+data[date][index]={amount:a,note:n};
+localStorage.setItem(key,JSON.stringify(data));
+draw();
+}
+}
+
+</script>
+</body>
+</html>
