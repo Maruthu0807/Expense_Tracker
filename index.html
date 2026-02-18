@@ -4,28 +4,22 @@
 <meta charset="UTF-8">
 <title>Secure Expense Tracker</title>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <style>
 body{font-family:Arial;margin:0;text-align:center;background:#eef2f7;}
 .page{padding:30px;}
 .hidden{display:none;}
 
-input,textarea{
-padding:10px;margin:8px;width:250px;
-}
+input,textarea{padding:10px;margin:8px;width:250px;}
 
 button{
 padding:10px 18px;margin:8px;border:none;border-radius:8px;
 background:#4CAF50;color:white;font-size:15px;cursor:pointer;
 }
 
-table{
-border-collapse:collapse;margin:auto;background:white;width:95%;
-}
-
-td{
-border:1px solid #ccc;height:95px;vertical-align:top;padding:4px;
-}
-
+table{border-collapse:collapse;margin:auto;background:white;width:95%;}
+td{border:1px solid #ccc;height:95px;vertical-align:top;padding:4px;}
 .date{font-weight:bold;}
 
 .entry{
@@ -33,19 +27,25 @@ font-size:12px;background:#e8f5e9;margin:2px;padding:2px;border-radius:4px;
 }
 
 .action{cursor:pointer;margin-left:6px;font-weight:bold;}
-.del{color:red;}
-.edit{color:blue;}
+.del{color:red; padding-left: 25px;}
+.edit{color:blue;padding-left: 10px;}
 
 .total{font-size:18px;margin:10px;font-weight:bold;}
-
 .search{padding:10px;width:250px;margin:10px;}
 
 .topbar{
-background:#222;color:white;padding:12px;
-display:flex;justify-content:space-between;align-items:center;
+background:#222;color:white;padding:12px 20px;
+position:relative;height:50px;display:flex;align-items:center;
 }
 
-.logout{background:red;}
+#welcome{position:absolute;left:20px;}
+
+.title{
+position:absolute;left:50%;transform:translateX(-50%);
+font-weight:bold;font-size:20px;
+}
+
+.logout{position:absolute;right:20px;background:red;}
 
 .reportBox{
 background:white;margin:6px auto;padding:10px;border-radius:8px;
@@ -57,7 +57,6 @@ background:#ffe082;
 font-weight:bold;
 border:2px solid orange;
 }
-
 </style>
 </head>
 
@@ -67,7 +66,7 @@ border:2px solid orange;
 <div id="loginPage" class="page hidden">
 <h2>Login</h2>
 <input id="loginUser" placeholder="Username"><br>
-<input id="loginPass" type="password" placeholder="Password"><br>
+<input id="loginPass" type="password"><br>
 <button onclick="login()">Login</button>
 <button onclick="show('signupPage')">Sign Up</button>
 </div>
@@ -86,12 +85,13 @@ border:2px solid orange;
 
 <div class="topbar">
 <span id="welcome"></span>
+<div class="title">EXPENSE TRACKER</div>
 <button class="logout" onclick="logout()">Logout</button>
 </div>
 
 <div class="page">
 
-<button onclick="showSection('form')">Add Expense</button>
+<button onclick="openForm()">Add Expense</button>
 <button onclick="showSection('calendar');draw()">View Calendar</button>
 
 <!-- FORM -->
@@ -112,7 +112,16 @@ border:2px solid orange;
 <button onclick="changeMonth(1)">▶</button>
 </h3>
 
-<input id="search" class="search" placeholder="Search..." oninput="draw()">
+<div style="position:relative;display:inline-block;">
+<input id="search" class="search" placeholder="Search..." oninput="draw()" style="padding-right:35px;">
+<span id="clearSearch" onclick="clearSearch()" 
+style="position:absolute;right:15px;top:50%;transform:translateY(-50%);
+cursor:pointer;font-weight:bold;color:#888;font-size:18px;">×</span>
+</div>
+<div id="searchTotal" style="font-weight:bold;"></div>
+
+
+<button onclick="downloadPDF()">Export PDF</button>
 
 <div class="total" id="total"></div>
 
@@ -128,7 +137,7 @@ border:2px solid orange;
 
 <script>
 
-/* ---------- AUTH ---------- */
+/* AUTH */
 
 function show(id){
 document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
@@ -167,11 +176,23 @@ signupPage.classList.add("hidden");
 appPage.classList.remove("hidden");
 welcome.innerText="Welcome "+u;
 showSection("form");
+setToday();
 }
 startApp();
 
 
-/* ---------- APP ---------- */
+/* AUTO DATE */
+function setToday(){
+date.value=new Date().toISOString().split("T")[0];
+}
+
+function openForm(){
+showSection("form");
+setToday();
+}
+
+
+/* APP */
 
 let current=new Date();
 
@@ -186,7 +207,6 @@ return String(dt.getDate()).padStart(2,"0")+"-"+String(dt.getMonth()+1).padStart
 }
 
 function save(){
-
 let d=date.value;
 let amt=amount.value;
 let noteText=note.value.trim();
@@ -212,7 +232,6 @@ current.setMonth(current.getMonth()+n);
 draw();
 }
 
-
 function draw(){
 
 let table=cal;
@@ -230,7 +249,9 @@ let user=localStorage.getItem("loggedUser");
 let data=JSON.parse(localStorage.getItem("data_"+user)||"{}");
 
 let search=document.getElementById("search").value.toLowerCase();
+
 let total=0;
+let searchTotal=0;
 let row=document.createElement("tr");
 
 for(let i=0;i<first;i++)row.appendChild(document.createElement("td"));
@@ -254,11 +275,12 @@ let key=year+"-"+String(month+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
 if(data[key]){
 data[key].forEach((e,i)=>{
 
-let text=(e.amount+" "+e.note).toLowerCase();
+let combined=(e.amount+" "+e.note).toLowerCase();
 
-if(text.includes(search)){
+if(combined.includes(search)){
 
 total+=Number(e.amount);
+searchTotal+=Number(e.amount);
 
 let div=document.createElement("div");
 div.className="entry";
@@ -270,7 +292,6 @@ div.innerHTML=
 
 cell.appendChild(div);
 }
-
 });
 }
 
@@ -278,15 +299,17 @@ row.appendChild(cell);
 }
 
 table.appendChild(row);
+
 document.getElementById("total").innerText="Monthly Total: ₹"+total;
+
+document.getElementById("searchTotal").innerText=
+search ? "Search Total: ₹"+searchTotal : "";
 
 
 /* DATE TOTALS + HIGHEST */
 
 let html="<h3>Date-wise Total</h3>";
 let overall=0;
-let found=false;
-
 let maxAmount=0;
 let maxDate="";
 let monthlyData={};
@@ -306,28 +329,21 @@ maxDate=d;
 }
 });
 
-
 Object.keys(monthlyData).sort().forEach(d=>{
-
 let sum=monthlyData[d];
 overall+=sum;
 
-let highlight = d===maxDate ? "highlight" : "";
-let label = d===maxDate ? " ⭐ " : "";
+let highlight=d===maxDate?"highlight":"";
+let label=d===maxDate?" ⭐ Highest":"";
 
-html+=`
-<div class="reportBox ${highlight}">
+html+=`<div class="reportBox ${highlight}">
 ${formatDate(d)} — ₹${sum}${label}
 </div>`;
-
-found=true;
 });
 
-html+=found?`<h3>Overall Total: ₹${overall}</h3>`:"<i>No records</i>";
-
+html+=`<h3>Overall Total: ₹${overall}</h3>`;
 dateTotals.innerHTML=html;
 }
-
 
 
 /* DELETE */
@@ -340,7 +356,6 @@ if(data[date].length==0)delete data[date];
 localStorage.setItem(key,JSON.stringify(data));
 draw();
 }
-
 
 /* EDIT */
 function editEntry(date,index){
@@ -358,7 +373,101 @@ draw();
 }
 }
 
+/*Clear Text in the Search Engine*/
+function clearSearch(){
+document.getElementById("search").value="";
+draw();
+}
+
+/* PDF EXPORT */
+async function downloadPDF(){
+
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
+
+let user=localStorage.getItem("loggedUser");
+let data=JSON.parse(localStorage.getItem("data_"+user)||"{}");
+
+let year=current.getFullYear();
+let month=current.getMonth();
+
+let title=current.toLocaleString("default",{month:"long",year:"numeric"});
+
+/* ---------- HEADER ---------- */
+doc.setFontSize(20);
+doc.text("Expense Report",105,20,null,null,"center");
+
+doc.setFontSize(12);
+doc.text(title,105,30,null,null,"center");
+
+/* ---------- TABLE HEADER ---------- */
+let y=45;
+
+doc.setFontSize(12);
+doc.setFont(undefined,"bold");
+
+doc.text("Date",20,y);
+doc.text("Amount",90,y);
+doc.text("Note",140,y);
+
+y+=5;
+doc.line(20,y,190,y);
+
+doc.setFont(undefined,"normal");
+y+=10;
+
+/* ---------- DATA ---------- */
+
+let total=0;
+let found=false;
+
+Object.keys(data).sort().forEach(d=>{
+
+let dt=new Date(d);
+if(dt.getMonth()!=month||dt.getFullYear()!=year) return;
+
+data[d].forEach(e=>{
+
+found=true;
+
+doc.text(formatDate(d),20,y);
+doc.text("Rs."+e.amount,90,y);
+doc.text(e.note.substring(0,25),140,y);
+
+total+=Number(e.amount);
+y+=10;
+
+/* page break */
+if(y>270){
+doc.addPage();
+y=20;
+}
+
+});
+});
+
+/* ---------- NO DATA ---------- */
+if(!found){
+doc.text("No records found for this month.",20,y);
+y+=10;
+}
+
+/* ---------- TOTAL ---------- */
+y+=10;
+doc.setFont(undefined,"bold");
+doc.text("Total Expense: Rs."+total,20,y);
+
+/* ---------- FOOTER ---------- */
+y+=15;
+doc.setFontSize(10);
+doc.setFont(undefined,"normal");
+doc.text("Generated by Expense Tracker",105,y,null,null,"center");
+
+/* ---------- SAVE ---------- */
+doc.save("Expense_Report.pdf");
+}
+
+
 </script>
 </body>
 </html>
-
