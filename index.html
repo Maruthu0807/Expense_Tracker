@@ -313,7 +313,7 @@ let sum=monthlyData[d];
 overall+=sum;
 
 let highlight = d===maxDate ? "highlight" : "";
-let label = d===maxDate ? " ⭐ Highest" : "";
+let label = d===maxDate ? " ⭐ " : "";
 
 html+=`
 <div class="reportBox ${highlight}">
@@ -361,3 +361,4 @@ draw();
 </script>
 </body>
 </html>
+
