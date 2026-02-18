@@ -280,7 +280,42 @@ let html="<h3>Date-wise Total</h3>";
 let overall=0;
 let found=false;
 
-Object.keys(data).sort().forEach(d=>{
+let maxAmount=0;
+let maxDate="";
+
+let monthlyData={};
+
+Object.keys(data).forEach(d=>{
+let dt=new Date(d);
+if(dt.getMonth()!=month||dt.getFullYear()!=year) return;
+
+let sum=0;
+data[d].forEach(e=>sum+=Number(e.amount));
+
+monthlyData[d]=sum;
+
+if(sum>maxAmount){
+maxAmount=sum;
+maxDate=d;
+}
+});
+Object.keys(monthlyData).sort().forEach(d=>{
+let sum=monthlyData[d];
+overall+=sum;
+let highlight = d===maxDate ? "background:#ffe082;font-weight:bold;" : "";
+let label = d===maxDate ? " ⭐ Highest" : "";
+html+=`
+<div class="reportBox" style="${highlight}">
+${formatDate(d)} — ₹${sum}${label}
+</div>`;
+
+found=true;
+});
+
+html+=found?`<h3>Overall Total: ₹${overall}</h3>`:"<i>No records</i>";
+
+document.getElementById("dateTotals").innerHTML=html;
+
 
 let dt=new Date(d);
 if(dt.getMonth()!=month||dt.getFullYear()!=year) return;
@@ -332,4 +367,5 @@ draw();
 </script>
 </body>
 </html>
+
 
